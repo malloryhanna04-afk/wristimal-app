@@ -470,6 +470,358 @@
       }
     },1000);
     loadEmergencyContact();
+    
+// ==========================================
+// WRISTIMAL ANXIETY AND POTS MODE
+// School demonstration — not medical logic
+// ==========================================
+
+// Illustrative thresholds only.
+// They do not diagnose anxiety, POTS,
+// or any other medical condition.
+const DEMO_ANXIETY_HR_INCREASE = 15;
+const DEMO_ANXIETY_EDA_RATIO = 1.30;
+const DEMO_POTS_HR_INCREASE = 20;
+
+// Store the latest reading.
+// Initially uses the displayed demo readings.
+let latestWristimalReading = {
+  heartRate: Number(
+    document.getElementById("heartRate").textContent
+  ),
+  oxygen: Number(
+    document.getElementById("oxygen").textContent
+  ),
+  conductance: Number(
+    document.getElementById("conductance").textContent
+  )
+};
+
+// ANXIETY STATE
+let anxietyBaseline = null;
+let anxietyChangeCount = 0;
+
+// POTS STATE
+let potsBaseline = null;
+let potsStanding = false;
+let potsChangeCount = 0;
+
+// Helper to update messages safely
+function setModeText(id, message) {
+  const element = document.getElementById(id);
+  if (element) element.textContent = message;
+}
+
+// Show correct controls for selected profile
+function updateProfileControls() {
+  const selected = document.querySelector(
+    'input[name="profile"]:checked'
+  );
+
+  if (!selected) return;
+
+  const anxiety = selected.value ===
+    "Anxiety / Panic Support";
+
+  const pots = selected.value ===
+    "POTS / Orthostatic Support";
+
+  document.getElementById(
+    "anxietyControls"
+  ).style.display = anxiety ? "block" : "none";
+
+  document.getElementById(
+    "potsControls"
+  ).style.display = pots ? "block" : "none";
+}
+
+// Attach to the existing profile controls
+document.querySelectorAll(
+  'input[name="profile"]'
+).forEach(radio => {
+  radio.addEventListener(
+    "change",
+    updateProfileControls
+  );
+});
+
+updateProfileControls();
+
+// ==========================================
+// RECORD PERSONAL BASELINES
+// ==========================================
+
+function recordAnxietyBaseline() {
+  const { heartRate, conductance } =
+    latestWristimalReading;
+
+  anxietyBaseline = {
+    heartRate,
+    conductance
+  };
+
+  anxietyChangeCount = 0;
+
+  setModeText(
+    "anxietyHRBaseline",
+    heartRate.toFixed(0) + " bpm"
+  );
+
+  setModeText(
+    "anxietyEDABaseline",
+    conductance.toFixed(2) + " µS"
+  );
+
+  setModeText(
+    "anxietyResponse",
+    "Baseline recorded. Wristimal will compare " +
+    "future readings against these example values."
+  );
+}
+
+function recordPotsBaseline() {
+  potsBaseline = latestWristimalReading.heartRate;
+  potsStanding = false;
+  potsChangeCount = 0;
+
+  setModeText(
+    "potsBaseline",
+    potsBaseline.toFixed(0) + " bpm"
+  );
+
+  setModeText("potsDifference", "--");
+
+  setModeText(
+    "potsResponse",
+    "Resting baseline recorded. " +
+    "Press I'm Standing when you change position."
+  );
+}
+
+function startStandingObservation() {
+  if (potsBaseline === null) {
+    setModeText(
+      "potsResponse",
+      "Record a resting baseline first."
+    );
+    return;
+  }
+
+  potsStanding = true;
+  potsChangeCount = 0;
+
+  setModeText(
+    "potsResponse",
+    "Standing observation started. " +
+    "Monitoring heart rate relative to baseline."
+  );
+
+  processModeReading(latestWristimalReading);
+}
+
+// ==========================================
+// PROCESS SENSOR READINGS
+// ==========================================
+
+function processModeReading(reading) {
+  if (
+    !reading ||
+    !Number.isFinite(reading.heartRate) ||
+    !Number.isFinite(reading.oxygen) ||
+    !Number.isFinite(reading.conductance) ||
+    reading.heartRate < 0 ||
+    reading.heartRate > 300 ||
+    reading.oxygen < 0 ||
+    reading.oxygen > 100 ||
+    reading.conductance < 0
+  ) {
+    return;
+  }
+
+  latestWristimalReading = reading;
+
+  const selected = document.querySelector(
+    'input[name="profile"]:checked'
+  );
+
+  if (!selected) return;
+
+  if (selected.value ===
+      "Anxiety / Panic Support") {
+    processAnxietyMode(reading);
+  }
+
+  if (selected.value ===
+      "POTS / Orthostatic Support") {
+    processPotsMode(reading);
+  }
+}
+
+// ==========================================
+// ANXIETY MODE PROCESSING
+// ==========================================
+
+function processAnxietyMode(reading) {
+  if (!anxietyBaseline) return;
+
+  const hrIncrease =
+    reading.heartRate -
+    anxietyBaseline.heartRate;
+
+  const edaRatio =
+    anxietyBaseline.conductance > 0
+      ? reading.conductance /
+        anxietyBaseline.conductance
+      : 1;
+
+  const exampleChange =
+    hrIncrease >= DEMO_ANXIETY_HR_INCREASE &&
+    edaRatio >= DEMO_ANXIETY_EDA_RATIO;
+
+  anxietyChangeCount = exampleChange
+    ? anxietyChangeCount + 1
+    : 0;
+
+  if (anxietyChangeCount >= 3) {
+    setModeText(
+      "anxietyResponse",
+      "Your physiological arousal has increased. " +
+      "How are you feeling? You can start a " +
+      "calming exercise or request support."
+    );
+  } else {
+    setModeText(
+      "anxietyResponse",
+      "Monitoring changes from your baseline. " +
+      "No sustained demo trigger detected."
+    );
+  }
+}
+
+// ==========================================
+// POTS MODE PROCESSING
+// ==========================================
+
+function processPotsMode(reading) {
+  if (potsBaseline === null) return;
+
+  const difference =
+    reading.heartRate - potsBaseline;
+
+  setModeText(
+    "potsDifference",
+    (difference >= 0 ? "+" : "") +
+    difference.toFixed(0) + " bpm"
+  );
+
+  if (!potsStanding) return;
+
+  const exampleChange =
+    difference >= DEMO_POTS_HR_INCREASE;
+
+  potsChangeCount = exampleChange
+    ? potsChangeCount + 1
+    : 0;
+
+  if (potsChangeCount >= 3) {
+    setModeText(
+      "potsResponse",
+      "Your heart rate has increased from " +
+      "your recorded resting baseline. " +
+      "Are you feeling dizzy or lightheaded?"
+    );
+  } else {
+    setModeText(
+      "potsResponse",
+      "Recording standing heart-rate changes. " +
+      "Please log any symptoms."
+    );
+  }
+}
+
+// ==========================================
+// POTS SYMPTOM CHECK-IN
+// ==========================================
+
+function logPotsSymptoms(hasSymptoms) {
+  if (hasSymptoms) {
+    setModeText(
+      "potsSymptoms",
+      "Symptom recorded: dizziness or " +
+      "lightheadedness. Sit or lie down " +
+      "safely if you feel faint. " +
+      "Use Help if assistance is needed."
+    );
+  } else {
+    setModeText(
+      "potsSymptoms",
+      "No symptoms reported."
+    );
+  }
+}
+
+// ==========================================
+// CLASS DEMONSTRATION BUTTONS
+// ==========================================
+
+// Simulate three consecutive readings so
+// the sustained-change rule can be tested.
+
+function demoAnxietyChange() {
+  if (!anxietyBaseline) {
+    recordAnxietyBaseline();
+  }
+
+  const sample = {
+    heartRate:
+      anxietyBaseline.heartRate + 25,
+    oxygen: 98,
+    conductance:
+      anxietyBaseline.conductance * 1.6
+  };
+
+  for (let i = 0; i < 3; i++) {
+    processModeReading(sample);
+  }
+
+  updateDemoDisplay(sample);
+}
+
+function demoPotsChange() {
+  if (potsBaseline === null) {
+    recordPotsBaseline();
+  }
+
+  potsStanding = true;
+
+  const sample = {
+    heartRate: potsBaseline + 28,
+    oxygen: 98,
+    conductance: 2.4
+  };
+
+  for (let i = 0; i < 3; i++) {
+    processModeReading(sample);
+  }
+
+  updateDemoDisplay(sample);
+}
+
+// Update existing dashboard demo values
+function updateDemoDisplay(reading) {
+  document.getElementById(
+    "heartRate"
+  ).textContent = reading.heartRate.toFixed(0);
+
+  document.getElementById(
+    "oxygen"
+  ).textContent = reading.oxygen.toFixed(0);
+
+  document.getElementById(
+    "conductance"
+  ).textContent = reading.conductance.toFixed(2);
+}
+
   </script>
 </body>
 </html>
