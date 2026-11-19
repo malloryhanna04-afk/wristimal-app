@@ -135,6 +135,108 @@
           <label class="profile-choice"><input type="radio" name="profile" value="Custom Monitoring"><div><strong>Custom Monitoring</strong><p class="muted">Future personalized rules.</p></div></label>
         </div>
         <div class="card soft"><h2>Selected Profile</h2><strong id="selectedProfile">General Wellness</strong><p class="muted" id="profileDescription">All three signals are displayed. No disease detection is active.</p><button class="btn primary full" onclick="navigate('home')">Return to Dashboard</button></div>
+        
+<!-- ANXIETY MODE -->
+<div class="card soft" id="anxietyControls"
+     style="display:none">
+
+  <h2>Anxiety / Panic Support</h2>
+
+  <p class="muted">
+    Track changes in heart rate and skin conductance
+    relative to your personal baseline.
+  </p>
+
+  <p>
+    <strong>Resting HR:</strong>
+    <span id="anxietyHRBaseline">Not set</span>
+  </p>
+
+  <p>
+    <strong>Resting EDA:</strong>
+    <span id="anxietyEDABaseline">Not set</span>
+  </p>
+
+  <button class="btn primary full"
+          onclick="recordAnxietyBaseline()">
+    Record My Baseline
+  </button>
+
+  <button class="btn secondary full"
+          onclick="startCalming()">
+    Start Calming Exercise
+  </button>
+
+  <button class="btn outline full"
+          onclick="demoAnxietyChange()">
+    Simulate Anxiety-Mode Signal Change
+  </button>
+
+  <div class="alert-preview" style="margin-top:15px">
+    <strong>Wristimal Response</strong>
+    <p id="anxietyResponse">
+      Record a baseline to begin monitoring.
+    </p>
+  </div>
+</div>
+
+<!-- POTS MODE -->
+<div class="card soft" id="potsControls"
+     style="display:none">
+
+  <h2>POTS / Orthostatic Support</h2>
+
+  <p class="muted">
+    Compare your current heart rate with a
+    resting baseline when you stand.
+  </p>
+
+  <p>
+    <strong>Resting HR:</strong>
+    <span id="potsBaseline">Not set</span>
+  </p>
+
+  <p>
+    <strong>Current HR change:</strong>
+    <span id="potsDifference">--</span>
+  </p>
+
+  <button class="btn primary full"
+          onclick="recordPotsBaseline()">
+    Record Resting Heart Rate
+  </button>
+
+  <button class="btn secondary full"
+          onclick="startStandingObservation()">
+    I'm Standing
+  </button>
+
+  <button class="btn outline full"
+          onclick="demoPotsChange()">
+    Simulate Standing Heart Rate Change
+  </button>
+
+  <div class="alert-preview" style="margin-top:15px">
+    <strong>Wristimal Response</strong>
+    <p id="potsResponse">
+      Record your resting heart rate to begin.
+    </p>
+  </div>
+
+  <h2 style="margin-top:18px">Symptom Check-In</h2>
+
+  <button class="btn secondary full"
+          onclick="logPotsSymptoms(true)">
+    I Feel Dizzy / Lightheaded
+  </button>
+
+  <button class="btn outline full"
+          onclick="logPotsSymptoms(false)">
+    No Symptoms Right Now
+  </button>
+
+  <p class="muted" id="potsSymptoms"></p>
+</div>
         <p class="disclaimer">Profiles do not diagnose conditions or modify the ESP32 firmware. They are demonstration UI selections.</p>
       </section>
 
