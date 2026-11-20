@@ -51,6 +51,8 @@
  <div class="card status-card"><div class="status-circle"><div class="status-icon">♥</div><div class="status-label" id="statusLabel">Demo</div></div><h2 id="statusTitle">Your body signals</h2><p class="muted" id="statusMessage">Showing example measurements. Connect your ESP32 to view transmitted readings.</p><span class="good" style="font-size:12px" id="monitoringState">● Example data</span></div>
  <div class="row" style="margin:17px 0 12px"><strong>Your body signals</strong><span class="muted" id="dataSource">Sample readings</span></div>
  <div class="metrics">
+ < "!-- LIVE HEART RATE GRAPH -->
+  <div class="card"><div class="row"><h2>♥ Live Heart Rate</h2><span class="muted" id="hrGraphSource"> Demo readings</span></div><p class="muted"> Heart rate trend over the last 60 seconds</p><canvas id="heartRateChart" style="width:100%;height:210px;display:block;" aria-label="Heart rate trend graph" role="img"></canvas><div class="row"><span class="muted">60 seconds ago</span><span class="muted">Now</span></div></div>
   <div class="card"><div class="metric-name">♥ Heart Rate</div><div class="metric-value"><span id="heartRate">74</span> <span class="metric-unit">bpm</span></div><div class="muted">Pulse reading</div></div>
   <div class="card"><div class="metric-name">◉ Blood Oxygen</div><div class="metric-value"><span id="oxygen">98</span><span class="metric-unit">%</span></div><div class="muted">SpO₂ reading</div></div>
   <div class="card"><div class="metric-name">〰 Skin Conductance</div><div class="metric-value"><span id="conductance">2.40</span> <span class="metric-unit">µS</span></div><div class="muted">EDA / GSR</div></div>
@@ -227,6 +229,94 @@ function receiveWristimalData(event){const v=event.target.value,bytes=new Uint8A
 function disconnectWristimal(){if(wristimalDevice?.gatt?.connected)wristimalDevice.gatt.disconnect();else onDisconnected();}
 setInterval(()=>{if(live&&lastPacketAt&&Date.now()-lastPacketAt>5000){bluetoothStatus("Connected, but no data for more than 5 seconds");modeText("monitoringState","● Data stream stale");modeText("dataSource","Stale readings");}},1000);
 loadEmergencyContact();updateProfileControls();
+
+ 
+// WRISTIMAL LIVE HEART RATE GRAPH
+const heartRateHistory = [];
+const HR_WINDOW_MS = 60000;
+let heartRateGraphMode = null;
+function addHeartRatePoint(hr, source) {if (!Number.isFinite(hr) || hr <= 0 || hr > 300) {return;}
+// Keep demo and real ESP32 data separate.
+  const mode = source === "ESP32 readings"? "live": "demo";
+  if (heartRateGraphMode !== mode) {heartRateHistory.length = 0;heartRateGraphMode = mode;}
+  const now = Date.now();
+  heartRateHistory.push({time: now,value: hr});
+// Keep only 60 seconds of readings.
+  while (heartRateHistory.length && heartRateHistory[0].time < now - HR_WINDOW_MS) {heartRateHistory.shift();}
+  document.getElementById("hrGraphSource").textContent = mode === "live"? "ESP32 readings": "Demo readings";
+  drawHeartRateGraph();}
+function drawHeartRateGraph() {const canvas = document.getElementById("heartRateChart");
+  if (!canvas) return;
+  const width = canvas.clientWidth;
+  const height = canvas.clientHeight;
+  if (!width || !height) return;
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = Math.round(width * dpr);
+  canvas.height = Math.round(height * dpr);
+  const ctx = canvas.getContext("2d");
+  ctx.scale(dpr, dpr);
+  const left = 36;
+  const right = 12;
+  const top = 15;
+  const bottom = 24;
+  const plotWidth = width - left - right;
+  const plotHeight = height - top - bottom;
+  ctx.clearRect(0, 0, width, height);
+  const values = heartRateHistory.map(p => p.value);
+
+  // Give the graph useful vertical boundaries.
+  const minValue = values.length? Math.min(...values): 60;
+  const maxValue = values.length? Math.max(...values): 100;
+  const yMin = Math.max(0, Math.floor((minValue - 15) / 10) * 10);
+  const yMax = Math.ceil((maxValue + 15) / 10) * 10;
+  const yRange = Math.max(10, yMax - yMin);
+
+  // Draw grid lines and BPM labels.
+  ctx.font = "11px Arial";
+  ctx.fillStyle = "#718091";
+  ctx.strokeStyle = "#e5eff0";
+  ctx.lineWidth = 1;
+
+  for (let i = 0; i <= 4; i++) {const y = top + (plotHeight * i / 4);
+    const bpm = yMax - (yRange * i / 4);
+    ctx.beginPath();
+    ctx.moveTo(left, y);
+    ctx.lineTo(width - right, y);
+    ctx.stroke();
+    ctx.fillText(Math.round(bpm).toString(),2,y + 4);}
+  if (heartRateHistory.length === 0) return;
+  const now = Date.now();
+  const xFor = point => left + plotWidth * (1 - (now - point.time) / HR_WINDOW_MS);
+  const yFor = point =>top + plotHeight * (1 - (point.value - yMin) / yRange);
+
+  // Draw the heart rate line.
+  ctx.beginPath();
+  ctx.strokeStyle = "#159a91";
+  ctx.lineWidth = 3;
+  ctx.lineJoin = "round";
+  ctx.lineCap = "round";
+
+  heartRateHistory.forEach((point, index) => {
+    const x = xFor(point);
+    const y = yFor(point);
+
+    if (index === 0) {ctx.moveTo(x, y);} else {ctx.lineTo(x, y);}});
+  ctx.stroke();
+
+  // Mark the newest reading.
+  const last = heartRateHistory[heartRateHistory.length - 1];
+
+  ctx.beginPath();
+  ctx.arc(xFor(last), yFor(last), 4, 0, Math.PI * 2);
+  ctx.fillStyle = "#159a91";
+  ctx.fill();}
+
+// Draw the graph when the window resizes.
+window.addEventListener("resize",drawHeartRateGraph);
+
+// Initial example reading.
+addHeartRatePoint(74, "Sample readings");
+
 </script>
 </body>
 </html>
